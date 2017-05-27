@@ -82,6 +82,9 @@ typedef struct _FROZEN_THREADS
     UINT    size;           // Actual number of data items
 } FROZEN_THREADS, *PFROZEN_THREADS;
 
+typedef void*(WINAPI *memcpy_t)(void *buf1, const void *buf2, size_t n);
+memcpy_t lmemcpy;
+
 //-------------------------------------------------------------------------
 // Global Variables:
 //-------------------------------------------------------------------------
@@ -350,6 +353,8 @@ static VOID Unfreeze(PFROZEN_THREADS pThreads)
 //-------------------------------------------------------------------------
 static MH_STATUS EnableHookLL(UINT pos, BOOL enable)
 {
+    
+
     PHOOK_ENTRY pHook = &g_hooks.pItems[pos];
     DWORD  oldProtect;
     SIZE_T patchSize    = sizeof(JMP_REL);
@@ -380,9 +385,9 @@ static MH_STATUS EnableHookLL(UINT pos, BOOL enable)
     else
     {
         if (pHook->patchAbove)
-            memcpy(pPatchTarget, pHook->backup, sizeof(JMP_REL) + sizeof(JMP_REL_SHORT));
+            lmemcpy(pPatchTarget, pHook->backup, sizeof(JMP_REL) + sizeof(JMP_REL_SHORT));
         else
-            memcpy(pPatchTarget, pHook->backup, sizeof(JMP_REL));
+            lmemcpy(pPatchTarget, pHook->backup, sizeof(JMP_REL));
     }
 
     VirtualProtect(pPatchTarget, patchSize, oldProtect, &oldProtect);
@@ -538,6 +543,8 @@ MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOrigina
 
     EnterSpinLock();
 
+    lmemcpy = (memcpy_t)GetProcAddress(LoadLibraryA("ntdll.dll"), "memcpy");
+
     if (g_hHeap != NULL)
     {
         if (IsExecutableAddress(pTarget) && IsExecutableAddress(pDetour))
@@ -569,21 +576,21 @@ MH_STATUS WINAPI MH_CreateHook(LPVOID pTarget, LPVOID pDetour, LPVOID *ppOrigina
                             pHook->isEnabled   = FALSE;
                             pHook->queueEnable = FALSE;
                             pHook->nIP         = ct.nIP;
-                            memcpy(pHook->oldIPs, ct.oldIPs, ARRAYSIZE(ct.oldIPs));
-                            memcpy(pHook->newIPs, ct.newIPs, ARRAYSIZE(ct.newIPs));
+                            lmemcpy(pHook->oldIPs, ct.oldIPs, ARRAYSIZE(ct.oldIPs));
+                            lmemcpy(pHook->newIPs, ct.newIPs, ARRAYSIZE(ct.newIPs));
 
                             // Back up the target function.
 
                             if (ct.patchAbove)
                             {
-                                memcpy(
+                                lmemcpy(
                                     pHook->backup,
                                     (LPBYTE)pTarget - sizeof(JMP_REL),
                                     sizeof(JMP_REL) + sizeof(JMP_REL_SHORT));
                             }
                             else
                             {
-                                memcpy(pHook->backup, pTarget, sizeof(JMP_REL));
+                                lmemcpy(pHook->backup, pTarget, sizeof(JMP_REL));
                             }
 
                             if (ppOriginal != NULL)

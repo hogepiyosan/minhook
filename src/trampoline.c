@@ -52,6 +52,9 @@
     #define TRAMPOLINE_MAX_SIZE MEMORY_SLOT_SIZE
 #endif
 
+typedef void*(WINAPI *memcpy_t)(void *buf1, const void *buf2, size_t n);
+memcpy_t lmemcpy;
+
 //-------------------------------------------------------------------------
 static BOOL IsCodePadding(LPBYTE pInst, UINT size)
 {
@@ -149,7 +152,8 @@ BOOL CreateTrampolineFunction(PTRAMPOLINE ct)
 
             // Avoid using memcpy to reduce the footprint.
 #ifndef _MSC_VER
-            memcpy(instBuf, (LPBYTE)pOldInst, copySize);
+            lmemcpy = (memcpy_t)GetProcAddress(LoadLibraryA("ntdll.dll"), "memcpy");
+            lmemcpy(instBuf, (LPBYTE)pOldInst, copySize);
 #else
             __movsb(instBuf, (LPBYTE)pOldInst, copySize);
 #endif
@@ -274,7 +278,8 @@ BOOL CreateTrampolineFunction(PTRAMPOLINE ct)
 
         // Avoid using memcpy to reduce the footprint.
 #ifndef _MSC_VER
-        memcpy((LPBYTE)ct->pTrampoline + newPos, pCopySrc, copySize);
+        lmemcpy = (memcpy_t)GetProcAddress(LoadLibraryA("ntdll.dll"), "memcpy");
+        lmemcpy((LPBYTE)ct->pTrampoline + newPos, pCopySrc, copySize);
 #else
         __movsb((LPBYTE)ct->pTrampoline + newPos, pCopySrc, copySize);
 #endif
@@ -309,7 +314,8 @@ BOOL CreateTrampolineFunction(PTRAMPOLINE ct)
     jmp.address = (ULONG_PTR)ct->pDetour;
 
     ct->pRelay = (LPBYTE)ct->pTrampoline + newPos;
-    memcpy(ct->pRelay, &jmp, sizeof(jmp));
+    lmemcpy = (memcpy_t)GetProcAddress(LoadLibraryA("ntdll.dll"), "memcpy");
+    lmemcpy(ct->pRelay, &jmp, sizeof(jmp));
 #endif
 
     return TRUE;
